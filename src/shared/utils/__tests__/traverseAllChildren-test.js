@@ -505,16 +505,12 @@ describe('traverseAllChildren', function() {
       </div>
     );
 
-    try {
+    expect(function() {
       traverseAllChildren(instance.props.children, function() {});
-      expect('here').toBe('not reached');
-    } catch (ex) {
-      // Can't fuzzy match on error with toThrow
-      expect(ex.message).toContain(
-        'Invariant Violation: Objects are not valid as a React child '
-      );
-      expect(ex.message).toContain('2015');
-    }
+    }).toThrow(
+      // Can't rely on full date formatting, as toString is locale aware
+      /^Invariant Violation: Objects are not valid as a React child .*2015/
+    );
   });
 
 });
