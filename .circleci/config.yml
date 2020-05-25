@@ -8,7 +8,7 @@ executors:
       TZ: /usr/share/zoneinfo/America/Los_Angeles
 
 commands:
-  restore_yarn_cache:
+  setup_yarn:
     steps:
       - restore_cache:
           name: Restore node_modules cache
@@ -16,45 +16,48 @@ commands:
             - v2-node-{{ arch }}-{{ .Branch }}-{{ checksum "yarn.lock" }}
             - v2-node-{{ arch }}-{{ .Branch }}-
             - v2-node-{{ arch }}-
-  run_yarn:
-      steps:
-        - run:
-            name: Install Packages
-            command: yarn --frozen-lockfile
-
-jobs:
-  setup:
-    executor: docker
-
-    steps:
-      - checkout
       - run:
-          name: Nodejs Version
-          command: node --version
-      - restore_yarn_cache
-      - run_yarn
+          name: Install Packages
+          command: yarn --frozen-lockfile
       - save_cache:
           name: Save node_modules cache
           key: v2-node-{{ arch }}-{{ .Branch }}-{{ checksum "yarn.lock" }}
           paths:
             - ~/.cache/yarn
 
-  RELEASE_CHANNEL_stable_yarn_test:
+  record_stats:
+    steps:
+      - run:
+          name: Install sysstat
+          command: sudo apt-get install --yes sysstat
+      - run:
+          name: Recording via sysstat
+          background: true
+          command: sudo /usr/lib/sysstat/sadc 5 -
+  
+  publish_stats:
+    steps:
+      - run: |
+          sar -A
+          sadf -g -O autoscale,skipempty -- -A > /tmp/sysstat.svg
+      - store_artifacts:
+          path: /tmp/sysstat.svg
+          
+jobs:
+  yarn_test:
     executor: docker
 
     steps:
+      - record_stats
       - checkout
-      - restore_yarn_cache
-      - run_yarn
+      - setup_yarn
       - run:
           environment:
             RELEASE_CHANNEL: stable
           command: yarn test --maxWorkers=2
+      - publish_stats
 
 workflows:
   stable:
     jobs:
-      - setup
-      - RELEASE_CHANNEL_stable_yarn_test:
-          requires:
-            - setup
+      - yarn_test
